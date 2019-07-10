@@ -32,7 +32,7 @@
     </visual>
   </link>
 
-  <link name="horizontal_laser_link">
+  <link name="echoes">
     <visual>
       <origin xyz="0 0 0" />
       <geometry>
@@ -62,7 +62,7 @@
 
   <joint name="horizontal_laser_link_joint" type="fixed">
     <parent link="base_link" />
-    <child link="horizontal_laser_link" />
+    <child link="echoes" />
     <origin xyz="0.1007 0 0.0558" />
   </joint>
 

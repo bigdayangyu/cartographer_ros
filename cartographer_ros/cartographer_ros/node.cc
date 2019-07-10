@@ -66,12 +66,13 @@ template <typename MessageType>
     void (Cartographer::*handler)(int, const std::string&,
                           const typename MessageType::ConstSharedPtr),
     const int trajectory_id, const std::string& topic,
-    ::rclcpp::Node::SharedPtr node_handle, Cartographer* const node, rmw_qos_profile_t custom_qos_profile) {
+    ::rclcpp::Node::SharedPtr node_handle, Cartographer* const node, rclcpp::QoS custom_qos_profile) {
   return node_handle->create_subscription<MessageType>(
       topic,
+      custom_qos_profile,
       [node, handler, trajectory_id, topic](const typename MessageType::ConstSharedPtr msg) {
             (node->*handler)(trajectory_id, topic, msg);
-      }, custom_qos_profile);
+      });
 }
 
 }  // namespace
@@ -97,21 +98,23 @@ Cartographer::Cartographer(
 
   carto::common::MutexLocker lock(&mutex_);
 
+  auto  custom_qos_profile = rclcpp::QoS(rclcpp::KeepLast(50));
+
   submap_list_publisher_ =
       this->create_publisher<::cartographer_ros_msgs::msg::SubmapList>(
-          kSubmapListTopic, rmw_qos_profile_default);
+          kSubmapListTopic, custom_qos_profile);
   trajectory_node_list_publisher_ =
       this->create_publisher<::visualization_msgs::msg::MarkerArray>(
-          kTrajectoryNodeListTopic, rmw_qos_profile_default);
+          kTrajectoryNodeListTopic, custom_qos_profile);
   landmark_poses_list_publisher_ =
       this->create_publisher<::visualization_msgs::msg::MarkerArray>(
-          kLandmarkPosesListTopic, rmw_qos_profile_default);
+          kLandmarkPosesListTopic, custom_qos_profile);
   constraint_list_publisher_ =
       this->create_publisher<::visualization_msgs::msg::MarkerArray>(
-          kConstraintListTopic, rmw_qos_profile_default);
+          kConstraintListTopic, custom_qos_profile);
   scan_matched_point_cloud_publisher_ =
       this->create_publisher<sensor_msgs::msg::PointCloud2>(
-        kScanMatchedPointCloudTopic, rmw_qos_profile_default);
+        kScanMatchedPointCloudTopic, custom_qos_profile);
 
   auto submap_query_callback =
     [this](const std::shared_ptr<rmw_request_id_t> request_header,
@@ -406,12 +409,16 @@ int Cartographer::AddTrajectory(const TrajectoryOptions& options,
 void Cartographer::LaunchSubscribers(const TrajectoryOptions& options,
                              const cartographer_ros_msgs::msg::SensorTopics& topics,
                              const int trajectory_id) {
+
+  auto custom_qos_profile = rclcpp::SensorDataQoS();
+
+  // TODO(mikaelarguedas) pass qos profile aroung
   for (const std::string& topic : ComputeRepeatedTopicNames(
            topics.laser_scan_topic, options.num_laser_scans)) {
     subscribers_[trajectory_id].push_back(
         {SubscribeWithHandler<sensor_msgs::msg::LaserScan>(
              &Cartographer::HandleLaserScanMessage, trajectory_id, topic, node_handle_,
-             this, rmw_qos_profile_default),
+             this, custom_qos_profile),
          topic});
   }
 
@@ -421,7 +428,7 @@ void Cartographer::LaunchSubscribers(const TrajectoryOptions& options,
     subscribers_[trajectory_id].push_back(
         {SubscribeWithHandler<sensor_msgs::msg::MultiEchoLaserScan>(
              &Cartographer::HandleMultiEchoLaserScanMessage, trajectory_id, topic,
-             node_handle_, this, rmw_qos_profile_default),
+             node_handle_, this, custom_qos_profile),
          topic});
   }
 
@@ -430,7 +437,7 @@ void Cartographer::LaunchSubscribers(const TrajectoryOptions& options,
     subscribers_[trajectory_id].push_back(
         {SubscribeWithHandler<sensor_msgs::msg::PointCloud2>(
              &Cartographer::HandlePointCloud2Message, trajectory_id, topic,
-             node_handle_, this, rmw_qos_profile_default),
+             node_handle_, this, custom_qos_profile),
          topic});
   }
 
@@ -444,7 +451,7 @@ void Cartographer::LaunchSubscribers(const TrajectoryOptions& options,
     subscribers_[trajectory_id].push_back(
         {SubscribeWithHandler<sensor_msgs::msg::Imu>(&Cartographer::HandleImuMessage,
                                                      trajectory_id, topic,
-                                                     node_handle_, this, rmw_qos_profile_default),
+                                                     node_handle_, this, custom_qos_profile),
          topic});
   }
 
@@ -453,7 +460,7 @@ void Cartographer::LaunchSubscribers(const TrajectoryOptions& options,
     subscribers_[trajectory_id].push_back(
         {SubscribeWithHandler<nav_msgs::msg::Odometry>(&Cartographer::HandleOdometryMessage,
                                                        trajectory_id, topic,
-                                                       node_handle_, this, rmw_qos_profile_default),
+                                                       node_handle_, this, custom_qos_profile),
          topic});
   }
 
@@ -462,7 +469,7 @@ void Cartographer::LaunchSubscribers(const TrajectoryOptions& options,
     subscribers_[trajectory_id].push_back(
         {SubscribeWithHandler<sensor_msgs::msg::NavSatFix>(&Cartographer::HandleNavSatFixMessage,
                                                        trajectory_id, topic,
-                                                       node_handle_, this, rmw_qos_profile_default),
+                                                       node_handle_, this, custom_qos_profile),
          topic});
   }
 
@@ -471,7 +478,7 @@ void Cartographer::LaunchSubscribers(const TrajectoryOptions& options,
     subscribers_[trajectory_id].push_back(
         {SubscribeWithHandler<cartographer_ros_msgs::msg::LandmarkList>(&Cartographer::HandleLandmarkMessage,
                                                        trajectory_id, topic,
-                                                       node_handle_, this, rmw_qos_profile_default),
+                                                       node_handle_, this, custom_qos_profile),
          topic});
   }
 }
